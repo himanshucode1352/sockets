@@ -1,0 +1,45 @@
+<html lang="en">
+<head>
+    
+    <title>Document</title>
+</head>
+<body>
+    hiiiii from html
+    <h1 id="socketio"> not connected </h1>
+    <div id="display"> </div>
+    <h1 > open orders </h1>
+    <div id="display2"> </div>
+
+    <h1 > open orders </h1>
+    <div id="display3"> </div>
+    <script src="/socket.io/socket.io.js"></script>
+
+    <script>
+      var socket = io();
+
+      socket.on('connect', function() {
+        document.getElementById("socketio").innerHTML = "socket connected";
+      });
+
+      socket.on('order', function(rows) {
+        
+        document.getElementById("display").innerHTML = JSON.stringify(rows);
+      });
+
+
+      socket.on('order2', function(rows) {
+        
+        document.getElementById("display2").innerHTML = JSON.stringify(rows);
+      });
+
+
+      socket.on('data3', function(rows) {
+        
+        document.getElementById("display3").innerHTML = JSON.stringify(rows);
+      });
+
+
+
+      </script>
+</body>
+</html>
