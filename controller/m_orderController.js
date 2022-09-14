@@ -2,11 +2,12 @@ import db from "../models/index.js";
 import * as dotenv from 'dotenv'
 dotenv.config()
 import io from "../server.js";
-
+import { QueryTypes } from "sequelize";
+const sequelize = db.sequelize;
 const m_order = db.m_orders;
 
 
-const addOrder = (req, res) => {
+const abc = (req, res) => {
     if (!req.body) {
         res.send('please provide data')
     }
@@ -48,57 +49,187 @@ const addOrder = (req, res) => {
 }
 
 
-const sellOrder = (req, res) => {
+const addOrder = (req, res) => {
+    console.log(req.param.type)
+
 
     if (!req.body) {
         res.send('please provide data')
     }
-    let info = {
-        fiatPrice: req.body.fiatPrice,
-        cryptoSpend: req.body.cryptoSpend,
+
+    if (req.body.orderType == 4) {
+        let info = {
+            fiatPrice: req.body.fiatPrice,
+            cryptoSpend: req.body.cryptoSpend,
+            orderType: req.body.orderType
+        }
+
+        var cryptoAmount = 1 - process.env.fee / 100 * info.cryptoSpend
+        console.log('cryptoAmount', cryptoAmount)
+
+        var fiatExePrice = 1 + process.env.spread / 100 * info.fiatPrice;
+
+        var cryptoFee = info.cryptoSpend - cryptoAmount;
+
+        var fiatSpread = fiatExePrice - info.fiatPrice;
+
+        var customerFiatTotal = cryptoAmount * info.fiatPrice;
+
+        var appFiatTotal = cryptoAmount * info.fiatPrice;
+
+        var appFiatPayout = cryptoAmount * fiatExePrice;
+
+        let sellData = {
+            fiatExePrice: fiatExePrice,
+            cryptoFee: cryptoFee,
+            fiatSpread: fiatSpread,
+            customerFiatTotal: customerFiatTotal,
+            appFiatTotal: appFiatTotal,
+            appFiatPayout: appFiatPayout,
+            fiatPrice: info.fiatPrice,
+            cryptoSpend: info.cryptoSpend,
+            orderType: info.orderType
+        }
+
+        m_order.create(sellData).then(data => {
+            res.status(200).send(data)
+        }).catch(err => {
+            res.send(err)
+        })
 
     }
 
-    var cryptoAmount = 1 - process.env.fee / 100 * info.cryptoSpend
-    console.log('cryptoAmount', cryptoAmount)
+    if (req.body.orderType == 3) {
+        let info = {
+            fiatPrice: req.body.fiatPrice,
+            fiatSpend: req.body.fiatSpend,
+            orderType: req.body.orderType
+        }
 
-    var fiatExePrice = 1 + process.env.spread / 100 * info.fiatPrice;
+        var fiatAmount = 1 - process.env.fee / 100 * info.fiatSpend;
+        var fiatExePrice = 1 - process.env.spread / 100 * info.fiatPrice;
+        var fiatFee = info.fiatSpend - fiatAmount;
+        var fiatSpread = info.fiatPrice - fiatExePrice;
+        var customerCryptoTotal = fiatAmount / info.fiatPrice;
+        var appCryptoTotal = fiatAmount / fiatExePrice;
+        var appCryptoPayout = appCryptoTotal - customerCryptoTotal;
 
-    var cryptoFee = info.cryptoSpend - cryptoAmount;
+        let buyData = {
+            fiatAmount: fiatAmount,
+            fiatExePrice: fiatExePrice,
+            fiatFee: fiatFee,
+            fiatSpread: fiatSpread,
+            customerCryptoTotal: customerCryptoTotal,
+            appCryptoTotal: appCryptoTotal,
+            appCryptoPayout: appCryptoPayout,
+            fiatPrice: info.fiatPrice,
+            fiatSpend: info.fiatSpend,
+            orderType: info.orderType
+        }
+        m_order.create(buyData).then(data => {
+            res.status(200).send(data)
+        }).catch(err => {
+            res.send(err)
+        })
 
-    var fiatSpread = fiatExePrice - info.fiatPrice;
 
-    var customerFiatTotal = cryptoAmount * info.fiatPrice;
 
-    var appFiatTotal = cryptoAmount * info.fiatPrice;
-
-    var appFiatPayout = cryptoAmount * fiatExePrice;
-
-    let sellData = {
-        fiatExePrice: fiatExePrice,
-        cryptoFee: cryptoFee,
-        fiatSpread: fiatSpread,
-        customerFiatTotal: customerFiatTotal,
-        appFiatTotal: appFiatTotal,
-        appFiatPayout: appFiatPayout,
-        fiatPrice: info.fiatPrice,
-        cryptoSpend: info.cryptoSpend
     }
+    m_order.findAll().then(data => {
+        io.emit('data3', data)
+    }).catch(err => {
+        io.emit('err', err)
+    })
 
-    m_order.create(sellData).then(data => {
-        res.status(200).send(data)
+}
+
+
+
+const getOrder = async (req, res) => {
+
+
+    // var price2 = await sequelize.query(`SELECT * FROM "m_orders" WHERE "status" =${process.env.completeOrderStatus} `, { type: QueryTypes.SELECT });
+    // var date =  sequelize.query(`SELECT "updatedAt" FROM "m_orders" WHERE "status" =${process.env.completeOrderStatus} `, { type: QueryTypes.SELECT }).then(data=>{
+    //     res.send(data);
+
+    var date = sequelize.query(`SELECT  MAX("fiatPrice")as max_fiat,MIN("fiatPrice")as min_fiat,(ARRAY(select ROW(max("fiatPrice") ,min("fiatPrice")) from m_orders WHERE "status" = 5 and "updatedAt" between  (now() - '1 weeks'::interval) and now() GROUP BY "updatedAt" order by "updatedAt" desc LIMIT 1)) as open_close_order FROM "m_orders" WHERE "status" = 5 and "updatedAt" between  (now() - '1 weeks'::interval) and now() `, { type: QueryTypes.SELECT }).then(data => {
+        res.send(data);
     }).catch(err => {
         res.send(err)
     })
-  m_order.findAll().then(data=>{
-    io.emit('data3',data)
-  }).catch(err=>{
-    io.emit('err',err)
-  })
-    // res.status(200).send(cryptoAmount).then(data => console.log('succes')).catch(err => {
-    //     res.send(err)
-    // })
 
+
+
+
+    //select count(1)
+    // from events
+    // where time between (now() - '1 week'::interval) and (now() - '2 weeks'::interval);
+
+
+
+
+
+
+
+    // console.log(date)
+    // res.send(date);
+
+
+
+}
+
+
+
+const getChartData = (req, res) => {
+ console.log(req.body);
+
+    let x = req.body.type;
+    switch (x) {
+
+
+        case '1':
+
+     
+            sequelize.query(`SELECT  MAX("fiatPrice")as max_fiat,MIN("fiatPrice")as min_fiat,(select max("fiatPrice")  from m_orders WHERE "status" = ${process.env.completeOrderStatus}  and "updatedAt" between  (now() - '1 weeks'::interval) and now() GROUP BY "updatedAt" order by "updatedAt" desc LIMIT 1) as open_order,(select min("fiatPrice")  from m_orders WHERE "status" = ${process.env.completeOrderStatus} and "updatedAt" between  (now() - '1 weeks'::interval) and now() GROUP BY "updatedAt" order by "updatedAt" desc LIMIT 1) as close_order FROM "m_orders" WHERE "status" = ${process.env.completeOrderStatus}  and "updatedAt" between  (now() - '1 weeks'::interval) and now() `, { type: QueryTypes.SELECT }).then(data => {
+                res.send(data);
+            }).catch(err => {
+                res.send(err)
+            })
+
+
+
+            break;
+        case '2':
+           
+            sequelize.query(`SELECT  MAX("fiatPrice")as max_fiat,MIN("fiatPrice")as min_fiat,(select max("fiatPrice")  from m_orders WHERE "status" = ${process.env.completeOrderStatus}  and "updatedAt" between  (now() - '1 months'::interval) and now() GROUP BY "updatedAt" order by "updatedAt" desc LIMIT 1) as open_order,(select min("fiatPrice")  from m_orders WHERE "status" = ${process.env.completeOrderStatus} and "updatedAt" between  (now() - '1 months'::interval) and now() GROUP BY "updatedAt" order by "updatedAt" desc LIMIT 1) as close_order FROM "m_orders" WHERE "status" = ${process.env.completeOrderStatus}  and "updatedAt" between  (now() - '1 months'::interval) and now() `, { type: QueryTypes.SELECT }).then(data => {
+                res.send(data);
+            }).catch(err => {
+                res.send(err)
+            })
+            break;
+
+
+            case '3':
+           
+                sequelize.query(`SELECT  MAX("fiatPrice")as max_fiat,MIN("fiatPrice")as min_fiat,
+                (select MAX("fiatPrice")as open_order from "m_orders" WHERE "status" = 5 and (extract(epoch from (now() -"updatedAt")) / 60)<=15  GROUP BY "updatedAt" order by "updatedAt" desc LIMIT 1 )
+                ,(select MIN("fiatPrice")as close_order from "m_orders" WHERE "status" = 5 and (extract(epoch from (now() -"updatedAt")) / 60)<=15  GROUP BY "updatedAt" order by "updatedAt" desc LIMIT 1 )
+                FROM "m_orders" WHERE "status" = 5 and (extract(epoch from (now() -"updatedAt")) / 60)<=15 `, { type: QueryTypes.SELECT }).then(data => {
+                    res.send(data);
+                }).catch(err => {
+                    res.send(err)
+                })
+                break;
+
+
+        default:
+            sequelize.query(`SELECT  MAX("fiatPrice")as max_fiat,MIN("fiatPrice")as min_fiat,(select max("fiatPrice")  from m_orders WHERE "status" = ${process.env.completeOrderStatus}  and "updatedAt" between  (now() - '1 months'::interval) and now() GROUP BY "updatedAt" order by "updatedAt" desc LIMIT 1) as open_order,(select min("fiatPrice")  from m_orders WHERE "status" = ${process.env.completeOrderStatus} and "updatedAt" between  (now() - '1 months'::interval) and now() GROUP BY "updatedAt" order by "updatedAt" desc LIMIT 1) as close_order FROM "m_orders" WHERE "status" = ${process.env.completeOrderStatus}  and "updatedAt" between  (now() - '1 months'::interval) and now() `, { type: QueryTypes.SELECT }).then(data => {
+                res.send(data);
+            }).catch(err => {
+                res.send(err)
+            })
+            
+    }
 
 
 
@@ -112,4 +243,11 @@ const sellOrder = (req, res) => {
 
 
 
-export default { addOrder, sellOrder }
+
+
+
+
+
+
+
+export default { addOrder, getOrder ,getChartData}

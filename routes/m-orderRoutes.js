@@ -5,7 +5,9 @@ const router = Router();
 
 
 router.post('/add',controller.addOrder)
-router.post('/sell',controller.sellOrder)
+//router.post('/sell',controller.sellOrder)
+router.get('/getorders',controller.getOrder)
+router.get('/getchartdata',controller.getChartData)
 
 
 
